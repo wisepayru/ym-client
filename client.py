@@ -25,7 +25,8 @@ class Client:
         }
 
 
-    def get_order(self, orderId: int):
+    def getOrder(self, orderId: int):
+        # https://yandex.ru/dev/market/partner-api/doc/ru/reference/orders/getOrder
         endpoint = f'v2/campaigns/{self.campaignId}/orders/{orderId}'
         headers = self.headers
         order_details = requests.get(
@@ -34,3 +35,22 @@ class Client:
         )
         order_obj = OrderResponse(**order_details.json())
         return order_obj
+
+    def deliverDigitalGoods(self, orderId: int, items: list):
+        # https://yandex.ru/dev/market/partner-api/doc/ru/reference/orders/provideOrderDigitalCodes
+        endpoint = f'v2/campaigns/{self.campaignId}/orders/{orderId}/deliverDigitalGoods'
+        headers = self.headers
+        body = {
+            "items": items
+        }
+        response = requests.post(
+            url=f'{self.schema}://{self.url}/{endpoint}',
+            headers=headers,
+            json=body
+        )
+
+        if response.status_code == 200:
+            return response.json()
+        else:
+            response.raise_for_status()
+
