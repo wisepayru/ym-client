@@ -1,3 +1,4 @@
+pip-requirements
 tenacity
-requests
+httpx
 pydantic

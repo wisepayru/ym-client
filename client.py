@@ -1,9 +1,4 @@
-from tenacity import (
-    retry,
-    wait_fixed,
-    stop_after_attempt
-)
-import requests
+import httpx
 from .models import OrderResponse
 
 class Client:
@@ -13,44 +8,49 @@ class Client:
             url: str = 'api.partner.market.yandex.ru',
             campaignId: int = None,
             token: str = None):
-        if token == None:
+        if token is None:
             raise Exception("Yandex Market API token was not provided. In order to init a Y.Market client, please provide a token.")
         self.schema = schema
         self.url = url
         self.token = token
         self.campaignId = campaignId
+        self.base_url = f'{self.schema}://{self.url}'
         self.headers = {
             "User-Agent": "github:wisepay/ym-api",
             "Api-Key": token
         }
+        self._client = None
 
+    async def __aenter__(self):
+        self._client = httpx.AsyncClient(headers=self.headers, timeout=10.0)
+        return self
 
-    def getOrder(self, orderId: int):
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self._client.aclose()
+
+    async def getOrder(self, orderId: int):
         # https://yandex.ru/dev/market/partner-api/doc/ru/reference/orders/getOrder
         endpoint = f'v2/campaigns/{self.campaignId}/orders/{orderId}'
-        headers = self.headers
-        order_details = requests.get(
-            url=f'{self.schema}://{self.url}/{endpoint}',
-            headers=headers
-        )
-        order_obj = OrderResponse(**order_details.json())
-        return order_obj
+        url = f'{self.base_url}/{endpoint}'
+        
+        req = self._client.build_request('GET', url)
+        resp = await self._client.send(req)
+        
+        resp.raise_for_status()
+        
+        order_obj = OrderResponse(**resp.json())
+        return req, resp, order_obj
 
-    def deliverDigitalGoods(self, orderId: int, items: list):
+    async def deliverDigitalGoods(self, orderId: int, items: list):
         # https://yandex.ru/dev/market/partner-api/doc/ru/reference/orders/provideOrderDigitalCodes
         endpoint = f'v2/campaigns/{self.campaignId}/orders/{orderId}/deliverDigitalGoods'
-        headers = self.headers
+        url = f'{self.base_url}/{endpoint}'
         body = {
             "items": items
         }
-        response = requests.post(
-            url=f'{self.schema}://{self.url}/{endpoint}',
-            headers=headers,
-            json=body
-        )
 
-        if response.status_code == 200:
-            return response.json()
-        else:
-            response.raise_for_status()
+        req = self._client.build_request('POST', url, json=body)
+        resp = await self._client.send(req)
 
+        resp.raise_for_status()
+        return req, resp, resp.json()
