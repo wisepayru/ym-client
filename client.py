@@ -1,4 +1,5 @@
 import httpx
+from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
 from .models import OrderResponse
 
 class Client:
@@ -28,6 +29,11 @@ class Client:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self._client.aclose()
 
+    @retry(
+        stop=stop_after_attempt(5),
+        wait=wait_fixed(2),
+        retry=retry_if_exception_type(httpx.RequestError)
+    )
     async def getOrder(self, orderId: int):
         # https://yandex.ru/dev/market/partner-api/doc/ru/reference/orders/getOrder
         endpoint = f'v2/campaigns/{self.campaignId}/orders/{orderId}'
@@ -41,6 +47,11 @@ class Client:
         order_obj = OrderResponse(**resp.json())
         return req, resp, order_obj
 
+    @retry(
+        stop=stop_after_attempt(5),
+        wait=wait_fixed(2),
+        retry=retry_if_exception_type(httpx.RequestError)
+    )
     async def deliverDigitalGoods(self, orderId: int, items: list):
         # https://yandex.ru/dev/market/partner-api/doc/ru/reference/orders/provideOrderDigitalCodes
         endpoint = f'v2/campaigns/{self.campaignId}/orders/{orderId}/deliverDigitalGoods'
