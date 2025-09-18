@@ -53,7 +53,7 @@ class Client:
         req = self._client.build_request(method, url, **kwargs)
         resp = await self._client.send(req)
         
-        resp.raise_for_status() # Raise an exception for 4xx or 5xx status codes
+        resp.raise_for_status()
         
         return req, resp, resp.json()
 
