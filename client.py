@@ -89,7 +89,7 @@ class Client:
     async def setOrderExternalId(self, orderId: int, externalOrderId: UUID) -> Tuple[httpx.Request, httpx.Response, Union[GenericSuccessResponse, GenericErrorResponse]]:
         """
         Sets an external identifier for an order.
-        https://api.partner.market.yandex.ru/v2/campaigns/{campaignId}/orders/{orderId}/external-id
+        https://yandex.ru/dev/market/partner-api/doc/ru/reference/orders/updateExternalOrderId
         """
         endpoint = f'v2/campaigns/{self.campaignId}/orders/{orderId}/external-id'
         body = {"externalOrderId": str(externalOrderId)}
