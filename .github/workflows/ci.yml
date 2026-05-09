@@ -27,7 +27,7 @@ jobs:
           fetch-depth: 0
 
       - name: Create virtualenv
-        run: /opt/homebrew/bin/python3.10 -m venv --clear .venv
+        run: /opt/homebrew/bin/python3.10 -m venv --clear --copies .venv
 
       - name: Install package
         run: .venv/bin/pip install --isolated -e ".[dev]"
