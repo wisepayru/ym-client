@@ -5,7 +5,7 @@ build-backend = "setuptools.backends.legacy:build"
 [project]
 name = "ym-client"
 description = "Python client for the Yandex Market Partner API"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = { text = "MPL-2.0" }
 dynamic = ["version"]
 dependencies = [
