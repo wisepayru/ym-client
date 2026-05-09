@@ -20,7 +20,7 @@ jobs:
       PYTHONNOUSERSITE: "1"
       PIP_NO_CACHE_DIR: "1"
       VIRTUAL_ENV: ${{ github.workspace }}/.venv
-      PATH: ${{ github.workspace }}/.venv/bin:${{ env.PATH }}
+      PATH: ${{ github.workspace }}/.venv/bin:/usr/local/bin:/usr/bin:/bin
     steps:
       - uses: actions/checkout@v4
         with:
