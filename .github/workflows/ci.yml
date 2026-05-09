@@ -16,18 +16,25 @@ jobs:
         contains(fromJson('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association)
       )
     runs-on: self-hosted
+    env:
+      PYTHONNOUSERSITE: "1"
+      PIP_NO_CACHE_DIR: "1"
+      VIRTUAL_ENV: ${{ github.workspace }}/.venv
+      PATH: ${{ github.workspace }}/.venv/bin:${{ env.PATH }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+      - name: Create virtualenv
+        run: /usr/bin/python3 -m venv --clear --copies .venv
 
       - name: Install package
-        run: pip install -e ".[dev]"
+        run: .venv/bin/pip install --isolated -e ".[dev]"
 
       - name: Run tests
-        run: python -m pytest tests/
+        run: .venv/bin/pytest tests/
+
+      - name: Cleanup virtualenv
+        if: always()
+        run: rm -rf .venv
