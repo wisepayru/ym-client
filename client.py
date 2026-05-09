@@ -2,7 +2,7 @@ import httpx
 from typing import Tuple, List, Dict, Any, Union
 from uuid import UUID
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
-from .models import OrderResponse
+from .models import OrderResponse, CalculateTariffsResponse
 from .models.generic import GenericSuccessResponse, GenericErrorResponse
 
 class Client:
@@ -100,4 +100,37 @@ class Client:
             return req, resp, GenericErrorResponse.model_validate(data)
 
         return req, resp, GenericSuccessResponse.model_validate(data)
+
+    async def calculateTariffs(self, offers: List[Dict[str, Any]]) -> Tuple[httpx.Request, httpx.Response, Union[CalculateTariffsResponse, GenericErrorResponse]]:
+        """
+        Calculate tariffs for a batch of offers (up to 200).
+        Each offer dict must contain: categoryId, price, quantity, and optionally
+        length, width, height, weight (all default to 1 if omitted).
+        https://yandex.ru/dev/market/partner-api/doc/ru/reference/tariffs/calculateTariffs
+        """
+        endpoint = 'v2/tariffs/calculate'
+        body = {
+            "parameters": {
+                "campaignId": self.campaignId
+            },
+            "offers": [
+                {
+                    "categoryId": offer["categoryId"],
+                    "price": offer["price"],
+                    "quantity": offer.get("quantity", 1),
+                    "length": offer.get("length", 1),
+                    "width": offer.get("width", 1),
+                    "height": offer.get("height", 1),
+                    "weight": offer.get("weight", 1),
+                }
+                for offer in offers
+            ]
+        }
+
+        req, resp, data = await self._request('POST', endpoint, json=body)
+
+        if 'errors' in data or data.get('status') == 'ERROR':
+            return req, resp, GenericErrorResponse.model_validate(data)
+
+        return req, resp, CalculateTariffsResponse.model_validate(data)
 
