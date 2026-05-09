@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "setuptools-scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ym-client"
+description = "Python client for the Yandex Market Partner API"
+requires-python = ">=3.10"
+license = { text = "MPL-2.0" }
+dynamic = ["version"]
+dependencies = [
+    "httpx",
+    "pydantic",
+    "tenacity",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.urls]
+Repository = "https://github.com/wisepayru/ym-client"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ym_client*"]
+
+[tool.setuptools_scm]

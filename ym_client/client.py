@@ -1,9 +1,17 @@
 import httpx
+from importlib.metadata import version, PackageNotFoundError
 from typing import Tuple, List, Dict, Any, Union
 from uuid import UUID
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
 from .models import OrderResponse, CalculateTariffsResponse
 from .models.generic import GenericSuccessResponse, GenericErrorResponse
+
+try:
+    _version = version("ym-client")
+except PackageNotFoundError:
+    _version = "dev"
+
+_USER_AGENT = f"wisepay-ym-client/{_version}"
 
 class Client:
     def __init__(
@@ -21,7 +29,7 @@ class Client:
         self.campaignId = campaignId
         self._token = token
         self._headers = {
-            "User-Agent": "github:wisepay/ym-api",
+            "User-Agent": _USER_AGENT,
             "Api-Key": self._token
         }
         self._client = None
