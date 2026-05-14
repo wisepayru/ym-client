@@ -1,6 +1,6 @@
 import httpx
 from importlib.metadata import version, PackageNotFoundError
-from typing import Tuple, List, Dict, Any, Union
+from typing import Dict, List, Any, Optional, Tuple, Union
 from uuid import UUID
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
 from .models import OrderResponse, CalculateTariffsResponse
@@ -15,8 +15,8 @@ _USER_AGENT = f"wisepay-ym-client/{_version}"
 
 class Client:
     def __init__(
-            self, 
-            schema: str = 'https', 
+            self,
+            schema: str = 'https',
             url: str = 'api.partner.market.yandex.ru',
             campaignId: int = None,
             token: str = None):
@@ -24,7 +24,7 @@ class Client:
             raise Exception("Yandex Market API token was not provided. In order to init a Y.Market client, please provide a token.")
         if campaignId is None:
             raise Exception("Yandex Market campaignId was not provided.")
-            
+
         self.base_url = f'{schema}://{url}'
         self.campaignId = campaignId
         self._token = token
@@ -37,7 +37,7 @@ class Client:
     async def __aenter__(self):
         self._client = httpx.AsyncClient(
             base_url=self.base_url,
-            headers=self._headers, 
+            headers=self._headers,
             timeout=httpx.Timeout(10.0, connect=5.0)
         )
         return self
@@ -51,65 +51,76 @@ class Client:
         wait=wait_fixed(2),
         retry=retry_if_exception_type((httpx.RequestError, httpx.TimeoutException))
     )
-    async def _request(self, method: str, url: str, **kwargs) -> Tuple[httpx.Request, httpx.Response, dict]:
-        """
-        Helper method to make a request and handle responses.
-        """
+    async def _request(
+        self,
+        method: str,
+        url: str,
+        extra_headers: Optional[Dict[str, str]] = None,
+        **kwargs,
+    ) -> Tuple[httpx.Request, httpx.Response, dict]:
         if not self._client:
             raise RuntimeError("Client not initialized. Use 'async with Client(...)'.")
-        
+        if extra_headers:
+            kwargs["headers"] = {**kwargs.pop("headers", {}), **extra_headers}
         req = self._client.build_request(method, url, **kwargs)
         resp = await self._client.send(req)
-        
         resp.raise_for_status()
-        
         return req, resp, resp.json()
 
-    async def getOrder(self, orderId: int) -> Tuple[httpx.Request, httpx.Response, Union[OrderResponse, GenericErrorResponse]]:
+    async def getOrder(
+        self,
+        orderId: int,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> Tuple[httpx.Request, httpx.Response, Union[OrderResponse, GenericErrorResponse]]:
         """
         Retrieve an order by its ID.
         https://yandex.ru/dev/market/partner-api/doc/ru/reference/orders/getOrder
         """
         endpoint = f'v2/campaigns/{self.campaignId}/orders/{orderId}'
-        req, resp, data = await self._request('GET', endpoint)
-        
+        req, resp, data = await self._request('GET', endpoint, extra_headers=headers)
         if 'errors' in data:
             return req, resp, GenericErrorResponse.model_validate(data)
+        return req, resp, OrderResponse.model_validate(data)
 
-        order_obj = OrderResponse.model_validate(data)
-        return req, resp, order_obj
-
-    async def deliverDigitalGoods(self, orderId: int, items: list) -> Tuple[httpx.Request, httpx.Response, Union[GenericSuccessResponse, GenericErrorResponse]]:
+    async def deliverDigitalGoods(
+        self,
+        orderId: int,
+        items: list,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> Tuple[httpx.Request, httpx.Response, Union[GenericSuccessResponse, GenericErrorResponse]]:
         """
         Provide digital codes for an order.
         https://yandex.ru/dev/market/partner-api/doc/ru/reference/orders/provideOrderDigitalCodes
         """
         endpoint = f'v2/campaigns/{self.campaignId}/orders/{orderId}/deliverDigitalGoods'
         body = {"items": items}
-
-        req, resp, data = await self._request('POST', endpoint, json=body)
-
+        req, resp, data = await self._request('POST', endpoint, json=body, extra_headers=headers)
         if 'errors' in data:
             return req, resp, GenericErrorResponse.model_validate(data)
-        
         return req, resp, GenericSuccessResponse.model_validate(data)
 
-    async def setOrderExternalId(self, orderId: int, externalOrderId: UUID) -> Tuple[httpx.Request, httpx.Response, Union[GenericSuccessResponse, GenericErrorResponse]]:
+    async def setOrderExternalId(
+        self,
+        orderId: int,
+        externalOrderId: UUID,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> Tuple[httpx.Request, httpx.Response, Union[GenericSuccessResponse, GenericErrorResponse]]:
         """
         Sets an external identifier for an order.
         https://yandex.ru/dev/market/partner-api/doc/ru/reference/orders/updateExternalOrderId
         """
         endpoint = f'v2/campaigns/{self.campaignId}/orders/{orderId}/external-id'
         body = {"externalOrderId": str(externalOrderId)}
-
-        req, resp, data = await self._request('POST', endpoint, json=body)
-
+        req, resp, data = await self._request('POST', endpoint, json=body, extra_headers=headers)
         if 'errors' in data:
             return req, resp, GenericErrorResponse.model_validate(data)
-
         return req, resp, GenericSuccessResponse.model_validate(data)
 
-    async def calculateTariffs(self, offers: List[Dict[str, Any]]) -> Tuple[httpx.Request, httpx.Response, Union[CalculateTariffsResponse, GenericErrorResponse]]:
+    async def calculateTariffs(
+        self,
+        offers: List[Dict[str, Any]],
+        headers: Optional[Dict[str, str]] = None,
+    ) -> Tuple[httpx.Request, httpx.Response, Union[CalculateTariffsResponse, GenericErrorResponse]]:
         """
         Calculate tariffs for a batch of offers (up to 200).
         Each offer dict must contain: categoryId, price, quantity, and optionally
@@ -118,9 +129,7 @@ class Client:
         """
         endpoint = 'v2/tariffs/calculate'
         body = {
-            "parameters": {
-                "campaignId": self.campaignId
-            },
+            "parameters": {"campaignId": self.campaignId},
             "offers": [
                 {
                     "categoryId": offer["categoryId"],
@@ -134,11 +143,7 @@ class Client:
                 for offer in offers
             ]
         }
-
-        req, resp, data = await self._request('POST', endpoint, json=body)
-
+        req, resp, data = await self._request('POST', endpoint, json=body, extra_headers=headers)
         if 'errors' in data or data.get('status') == 'ERROR':
             return req, resp, GenericErrorResponse.model_validate(data)
-
         return req, resp, CalculateTariffsResponse.model_validate(data)
-
