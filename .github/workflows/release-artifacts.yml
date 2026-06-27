@@ -1,0 +1,95 @@
+name: release-artifacts
+
+# On a published GitHub Release: gate on the test suite, then build a wheel +
+# sdist and attach them to the release. The primary consumption path stays
+# `pip install git+https://github.com/wisepayru/ym-client.git@<tag>`; these
+# artifacts give every release a validated, downloadable build.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write   # upload assets to the release
+
+# Serialise runs per release tag so a redelivered "published" event (or a manual
+# re-run) can't race a second `gh release upload` against the first and trip a
+# 422 "asset already exists". cancel-in-progress: false -> let the first finish.
+concurrency:
+  group: release-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  # Reuse the single source of truth so a release can never ship un-tested code.
+  test:
+    uses: ./.github/workflows/test.yml
+
+  build:
+    needs: test
+    runs-on: self-hosted
+    env:
+      PYTHONNOUSERSITE: "1"
+      PIP_NO_CACHE_DIR: "1"
+      VIRTUAL_ENV: ${{ github.workspace }}/.venv
+      PATH: ${{ github.workspace }}/.venv/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # Full history + tags so setuptools-scm derives the version from the
+          # release tag (otherwise it builds a 0.0.0/dev version).
+          fetch-depth: 0
+
+      - name: Create virtualenv (Python 3.14)
+        run: /opt/homebrew/bin/python3.14 -m venv --clear --copies .venv
+
+      - name: Install build backend
+        run: .venv/bin/pip install --isolated "build==1.5.0"
+
+      - name: Build wheel + sdist
+        run: .venv/bin/python -m build
+
+      - name: Verify built version matches the release tag
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          VERSION="${TAG#v}"   # tolerate an optional leading v
+          echo "release tag: $TAG  ->  expected version: $VERSION"
+          ls -1 dist/
+          if ! ls dist/*"$VERSION"* >/dev/null 2>&1; then
+            echo "::error::built artifacts do not carry version $VERSION (tag $TAG)"
+            exit 1
+          fi
+          if ls dist/*dev* >/dev/null 2>&1; then
+            echo "::error::a dev version was built -- the release tag is not at a clean commit"
+            exit 1
+          fi
+
+      - name: Upload artifacts to the release
+        # Tolerate a non-zero exit here: gh's HTTP layer can retry an upload POST
+        # that already landed server-side, surfacing a spurious 422 "already
+        # exists" even though the asset is attached. The verify step below is the
+        # real gate, so a false failure here no longer reds the job.
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          gh release upload "$TAG" dist/* --clobber \
+            || echo "::warning::gh release upload exited non-zero; verifying attachments next"
+
+      - name: Verify artifacts are attached
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          missing=0
+          for path in dist/*; do
+            name="$(basename "$path")"
+            state="$(gh release view "$TAG" --json assets \
+              --jq ".assets[] | select(.name == \"$name\") | .state")"
+            if [ "$state" = "uploaded" ]; then
+              echo "ok: $name (state=uploaded)"
+            else
+              echo "::error::asset $name is not attached (state='${state:-absent}')"
+              missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ]
+
+      - name: Cleanup
+        if: always()
+        run: rm -rf .venv dist build *.egg-info
