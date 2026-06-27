@@ -3,6 +3,7 @@ from importlib.metadata import version, PackageNotFoundError
 from typing import Dict, List, Any, Optional, Tuple, Union
 from uuid import UUID
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
+from pydantic import BaseModel
 from .models import OrderResponse, CalculateTariffsResponse
 from .models.generic import GenericSuccessResponse, GenericErrorResponse
 
@@ -55,9 +56,10 @@ class Client:
         self,
         method: str,
         url: str,
+        success_model: type[BaseModel],
         extra_headers: Optional[Dict[str, str]] = None,
         **kwargs,
-    ) -> Tuple[httpx.Request, httpx.Response, dict]:
+    ) -> Tuple[httpx.Request, httpx.Response, Union[BaseModel, GenericErrorResponse]]:
         if not self._client:
             raise RuntimeError("Client not initialized. Use 'async with Client(...)'.")
         if extra_headers:
@@ -65,7 +67,12 @@ class Client:
         req = self._client.build_request(method, url, **kwargs)
         resp = await self._client.send(req)
         resp.raise_for_status()
-        return req, resp, resp.json()
+        data = resp.json()
+        # YM signals business errors in the body (an `errors` list, or
+        # `status: ERROR` for tariffs) while still returning HTTP 200.
+        if 'errors' in data or data.get('status') == 'ERROR':
+            return req, resp, GenericErrorResponse.model_validate(data)
+        return req, resp, success_model.model_validate(data)
 
     async def getOrder(
         self,
@@ -77,10 +84,7 @@ class Client:
         https://yandex.ru/dev/market/partner-api/doc/ru/reference/orders/getOrder
         """
         endpoint = f'v2/campaigns/{self.campaignId}/orders/{orderId}'
-        req, resp, data = await self._request('GET', endpoint, extra_headers=headers)
-        if 'errors' in data:
-            return req, resp, GenericErrorResponse.model_validate(data)
-        return req, resp, OrderResponse.model_validate(data)
+        return await self._request('GET', endpoint, OrderResponse, extra_headers=headers)
 
     async def deliverDigitalGoods(
         self,
@@ -94,10 +98,7 @@ class Client:
         """
         endpoint = f'v2/campaigns/{self.campaignId}/orders/{orderId}/deliverDigitalGoods'
         body = {"items": items}
-        req, resp, data = await self._request('POST', endpoint, json=body, extra_headers=headers)
-        if 'errors' in data:
-            return req, resp, GenericErrorResponse.model_validate(data)
-        return req, resp, GenericSuccessResponse.model_validate(data)
+        return await self._request('POST', endpoint, GenericSuccessResponse, json=body, extra_headers=headers)
 
     async def setOrderExternalId(
         self,
@@ -111,10 +112,7 @@ class Client:
         """
         endpoint = f'v2/campaigns/{self.campaignId}/orders/{orderId}/external-id'
         body = {"externalOrderId": str(externalOrderId)}
-        req, resp, data = await self._request('POST', endpoint, json=body, extra_headers=headers)
-        if 'errors' in data:
-            return req, resp, GenericErrorResponse.model_validate(data)
-        return req, resp, GenericSuccessResponse.model_validate(data)
+        return await self._request('POST', endpoint, GenericSuccessResponse, json=body, extra_headers=headers)
 
     async def calculateTariffs(
         self,
@@ -143,7 +141,4 @@ class Client:
                 for offer in offers
             ]
         }
-        req, resp, data = await self._request('POST', endpoint, json=body, extra_headers=headers)
-        if 'errors' in data or data.get('status') == 'ERROR':
-            return req, resp, GenericErrorResponse.model_validate(data)
-        return req, resp, CalculateTariffsResponse.model_validate(data)
+        return await self._request('POST', endpoint, CalculateTariffsResponse, json=body, extra_headers=headers)

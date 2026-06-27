@@ -188,11 +188,17 @@ async def test_calculate_tariffs_error_dispatch(mock_ym, load_fixture):
     assert parsed.status == "ERROR"
 
 
-async def test_calculate_tariffs_status_error_without_errors_key(mock_ym):
-    # A bare `status: ERROR` (no errors[]) must still dispatch to the error model.
+@pytest.mark.parametrize("call", [
+    lambda c: c.setOrderExternalId(ORDER_ID, EXTERNAL_ID),
+    lambda c: c.deliverDigitalGoods(ORDER_ID, DIGITAL_ITEMS),
+    lambda c: c.calculateTariffs(OFFERS),
+], ids=["setOrderExternalId", "deliverDigitalGoods", "calculateTariffs"])
+async def test_bare_status_error_dispatches_to_error(mock_ym, call):
+    # A bare `status: ERROR` (no errors[]) must dispatch to the error model on
+    # every method -- the dispatch is unified in _request.
     mock_ym.respond_json({"status": "ERROR"})
     async with make_client() as client:
-        _, _, parsed = await client.calculateTariffs(OFFERS)
+        _, _, parsed = await call(client)
     assert isinstance(parsed, GenericErrorResponse)
     assert parsed.errors is None
 
