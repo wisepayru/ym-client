@@ -12,7 +12,6 @@ from uuid import UUID
 
 import httpx
 import pytest
-import tenacity
 
 from ym_client import Client
 from ym_client.models import CalculateTariffsResponse, OrderResponse
@@ -232,24 +231,21 @@ async def test_headers_propagated(mock_ym, load_fixture, name, fixture, call):
 
 
 # --- retry / error surfacing -----------------------------------------------
-# These assert the client's *current* behavior. The retry policy diverges from
-# iris-client (no transient-5xx retry, no reraise=True) -- tracked in #15.
 
-async def test_network_error_retries_then_raises_retryerror(mock_ym, fast_retry):
-    # ConnectError is an httpx.RequestError -> retried up to 5 attempts. Without
-    # reraise=True (#15) tenacity wraps the cause in a RetryError on exhaustion.
+async def test_network_error_retries_then_raises(mock_ym, fast_retry):
+    # ConnectError is an httpx.RequestError -> retried up to 5 attempts. With
+    # reraise=True (#15) the underlying httpx error surfaces directly, not
+    # wrapped in tenacity.RetryError.
     mock_ym.fail(httpx.ConnectError("boom"))
     async with make_client() as client:
-        with pytest.raises(tenacity.RetryError) as exc:
+        with pytest.raises(httpx.ConnectError):
             await client.getOrder(ORDER_ID)
-    assert isinstance(exc.value.last_attempt.exception(), httpx.ConnectError)
     assert len(mock_ym.requests) == 5
 
 
-@pytest.mark.parametrize("status_code", [400, 403, 404, 422])
+@pytest.mark.parametrize("status_code", [400, 403, 404, 409, 422])
 async def test_permanent_4xx_is_not_retried(mock_ym, fast_retry, status_code):
-    # raise_for_status raises HTTPStatusError, which is not an httpx.RequestError,
-    # so caller errors surface on the first attempt.
+    # Caller errors (incl. 403/404) are permanent -> raise on the first attempt.
     mock_ym.respond_json({"detail": "nope"}, status_code=status_code)
     async with make_client() as client:
         with pytest.raises(httpx.HTTPStatusError) as exc:
@@ -258,14 +254,13 @@ async def test_permanent_4xx_is_not_retried(mock_ym, fast_retry, status_code):
     assert len(mock_ym.requests) == 1
 
 
-@pytest.mark.xfail(strict=True, reason="#15: transient 5xx/429 should be retried like iris-client")
 @pytest.mark.parametrize("status_code", [429, 502, 503, 504])
-async def test_transient_status_is_retried(mock_ym, fast_retry, status_code):
-    # Desired behavior (iris-client parity): transient server statuses are
-    # retried up to 5 attempts. Currently they are not (HTTPStatusError is not
-    # an httpx.RequestError), so this xfails until #15 is fixed.
+async def test_transient_status_is_retried_then_raises(mock_ym, fast_retry, status_code):
+    # Transient server statuses (#15) are retried up to 5 attempts, then the
+    # HTTPStatusError surfaces directly (reraise=True).
     mock_ym.respond_json({"detail": "later"}, status_code=status_code)
     async with make_client() as client:
-        with pytest.raises(httpx.HTTPStatusError):
+        with pytest.raises(httpx.HTTPStatusError) as exc:
             await client.getOrder(ORDER_ID)
+    assert exc.value.response.status_code == status_code
     assert len(mock_ym.requests) == 5
