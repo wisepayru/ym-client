@@ -1,0 +1,6 @@
+{
+  "status": "ERROR",
+  "errors": [
+    {"code": "BAD_REQUEST", "message": "categoryId is required"}
+  ]
+}

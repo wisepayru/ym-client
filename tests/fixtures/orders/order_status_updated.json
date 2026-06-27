@@ -1,0 +1,71 @@
+{
+  "order": {
+    "id": 57960645632,
+    "externalOrderId": "ce3bac49-e15d-4d1c-9e41-8d9a5fb8fc52",
+    "status": "DELIVERY",
+    "substatus": "DELIVERY_SERVICE_RECEIVED",
+    "creationDate": "08-06-2026 22:24:19",
+    "updatedAt": "13-06-2026 13:21:54",
+    "currency": "RUR",
+    "itemsTotal": 2598,
+    "deliveryTotal": 0,
+    "buyerItemsTotal": 2598,
+    "buyerTotal": 2598,
+    "buyerItemsTotalBeforeDiscount": 2598,
+    "buyerTotalBeforeDiscount": 2598,
+    "paymentType": "PREPAID",
+    "paymentMethod": "YANDEX",
+    "fake": true,
+    "items": [
+      {
+        "id": 1124022645,
+        "offerId": "apple-giftcard-500-try",
+        "offerName": "Подарочная карта Apple для пополнения и оплаты App Store, iTunes, подписок номиналом 500 TRY / iCloud, Apple Music",
+        "price": 1299,
+        "buyerPrice": 1299,
+        "buyerPriceBeforeDiscount": 1299,
+        "priceBeforeDiscount": 1299,
+        "count": 2,
+        "vat": "VAT_20_120",
+        "shopSku": "apple-giftcard-500-try"
+      }
+    ],
+    "delivery": {
+      "type": "DIGITAL",
+      "serviceName": "Цифровая доставка",
+      "deliveryPartnerType": "SHOP",
+      "dates": {
+        "fromDate": "08-06-2026",
+        "toDate": "08-06-2026",
+        "fromTime": "00:00:00",
+        "toTime": "00:00:00"
+      },
+      "region": {
+        "id": 67,
+        "name": "Томск",
+        "type": "CITY"
+      },
+      "deliveryServiceId": 99,
+      "liftPrice": 0,
+      "dispatchType": "BUYER",
+      "shipments": [
+        {
+          "id": 900465230,
+          "shipmentDate": "09-06-2026"
+        }
+      ]
+    },
+    "buyer": {
+      "id": "4b050201c1824983b57cf414de77ffad",
+      "lastName": "Долгов",
+      "firstName": "123",
+      "email": "noreply-market@support.yandex.ru",
+      "type": "PERSON",
+      "phone": "+71111111111"
+    },
+    "notes": "123123123 123123132",
+    "taxSystem": "OSN",
+    "cancelRequested": false,
+    "sourcePlatform": "MARKET"
+  }
+}
