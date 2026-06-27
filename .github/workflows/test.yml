@@ -1,0 +1,56 @@
+name: tests
+
+# The single source of truth for "did tests pass". Runs standalone on pushes
+# and PRs; on a release it runs as the gating job inside release-artifacts.yml
+# (workflow_call), so there's no standalone `release` trigger here -- that would
+# just duplicate the same run.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_call: {}
+
+# Least privilege: this workflow only lints + tests, it never writes to the repo
+# or a release. The release workflow that calls this one declares its own
+# contents: write where it actually needs it.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    # push always runs. PRs run only when the author is an org
+    # member/maintainer -- the runner is self-hosted on the prod box, so we do
+    # not auto-run unreviewed (or fork) PR code. workflow_call passes through:
+    # the calling release workflow only fires on trusted events.
+    if: >-
+      github.event_name != 'pull_request' ||
+      contains(fromJson('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association)
+    runs-on: self-hosted
+    env:
+      # Isolated venv per run, never touching the runner's global site-packages.
+      PYTHONNOUSERSITE: "1"
+      PIP_NO_CACHE_DIR: "1"
+      VIRTUAL_ENV: ${{ github.workspace }}/.venv
+      PATH: ${{ github.workspace }}/.venv/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # Full history + tags so setuptools-scm can derive the version.
+          fetch-depth: 0
+
+      - name: Create virtualenv (Python 3.14)
+        run: /opt/homebrew/bin/python3.14 -m venv --clear --copies .venv
+
+      - name: Install package and test dependencies
+        run: .venv/bin/pip install --isolated -e . -r requirements-test.txt
+
+      - name: Lint (ruff)
+        run: .venv/bin/ruff check .
+
+      - name: Run tests
+        run: .venv/bin/pytest
+
+      - name: Cleanup virtualenv
+        if: always()
+        run: rm -rf .venv
