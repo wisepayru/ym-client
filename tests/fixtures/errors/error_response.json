@@ -1,0 +1,6 @@
+{
+  "status": "ERROR",
+  "errors": [
+    {"code": "NOT_FOUND", "message": "Order not found"}
+  ]
+}

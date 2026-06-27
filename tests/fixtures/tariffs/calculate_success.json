@@ -1,0 +1,33 @@
+{
+  "status": "OK",
+  "result": {
+    "offers": [
+      {
+        "offer": {
+          "categoryId": 1,
+          "price": 1299.0,
+          "length": 1.0,
+          "width": 1.0,
+          "height": 1.0,
+          "weight": 1.0,
+          "quantity": 4
+        },
+        "tariffs": [
+          {
+            "type": "AGENCY_COMMISSION",
+            "amount": 64.95,
+            "currency": "RUR",
+            "parameters": [
+              {"name": "value", "value": "5"}
+            ]
+          },
+          {
+            "type": "FEE",
+            "amount": 458.67,
+            "currency": "RUR"
+          }
+        ]
+      }
+    ]
+  }
+}

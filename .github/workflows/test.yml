@@ -49,7 +49,7 @@ jobs:
         run: .venv/bin/ruff check .
 
       - name: Run tests
-        run: .venv/bin/pytest
+        run: .venv/bin/pytest --cov-fail-under=90
 
       - name: Cleanup virtualenv
         if: always()
