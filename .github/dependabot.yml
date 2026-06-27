@@ -1,0 +1,29 @@
+# Dependabot keeps the pinned dependencies current and grouped into few PRs.
+#
+# CI note: Dependabot pushes its branches into this repo, so the `push`
+# trigger in test.yml runs the suite on each bump branch (that's the real
+# gate). The `pull_request`-triggered check shows as skipped, because the
+# author-association gate only runs PR jobs for org members -- so review and
+# merge these bumps manually after the push run is green.
+version: 2
+updates:
+  # GitHub Actions are pinned to commit SHAs (e.g. actions/checkout); keep the
+  # SHA and its `# vX.Y.Z` comment current. All bumps grouped into one PR.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # Python test dependencies pinned in requirements-test.txt. Runtime deps
+  # (httpx/pydantic/tenacity) are intentionally unpinned for a library, so
+  # there is nothing to bump there. All bumps grouped into one PR.
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      python:
+        patterns: ["*"]
