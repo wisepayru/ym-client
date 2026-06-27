@@ -1,12 +1,14 @@
 [build-system]
-requires = ["setuptools>=68", "setuptools-scm>=8"]
+# setuptools>=77 for the SPDX-string license + license-files support.
+requires = ["setuptools>=77", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "ym-client"
 description = "Python client for the Yandex Market Partner API"
-requires-python = ">=3.10"
-license = { text = "MPL-2.0" }
+requires-python = ">=3.14"
+license = "MPL-2.0"
+license-files = ["LICENSE"]
 dynamic = ["version"]
 dependencies = [
     "httpx",
@@ -14,8 +16,8 @@ dependencies = [
     "tenacity",
 ]
 
-[project.optional-dependencies]
-dev = ["pytest"]
+# Test dependencies live in requirements-test.txt (pinned, per #108):
+#   pip install -e . -r requirements-test.txt
 
 [project.urls]
 Repository = "https://github.com/wisepayru/ym-client"
