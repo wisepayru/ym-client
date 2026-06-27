@@ -9,11 +9,11 @@
 # psycopg test deps are needed; outgoing HTTP is faked with httpx.MockTransport
 # (built into httpx) rather than an extra mocking library.
 
-pytest==9.0.3
+pytest==9.1.1
 pytest-asyncio==1.4.0
 pytest-mock==3.15.1
 pytest-cov==7.1.0
-ruff==0.15.17
+ruff==0.15.20
 
 # --- transitive deps, pinned for reproducibility ---
-coverage==7.14.1
+coverage==7.14.3
