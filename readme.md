@@ -100,12 +100,11 @@ live in [`ym_client/models/`](ym_client/models/).
   returned type (e.g. `isinstance(result, OrderResponse)`).
 - **HTTP errors:** non-2xx responses raise `httpx.HTTPStatusError` via
   `raise_for_status()`.
-- **Retries:** requests are retried up to 5 times (fixed 2s wait) on `httpx`
-  transport errors (connect/read/timeout); on exhaustion `tenacity.RetryError`
-  is raised, wrapping the underlying cause. Note: unlike `iris-client`, transient
-  server statuses (`429`/`5xx`) are **not** currently retried and the underlying
-  exception is **not** re-raised on exhaustion — tracked in
-  [#15](https://github.com/wisepayru/ym-client/issues/15).
+- **Retries:** requests are retried up to 5 times (fixed 2s wait) on transport
+  errors (connect/read/timeout) and transient server statuses (`429`, `502`,
+  `503`, `504`). Permanent 4xx (e.g. `403`, `404`) raise immediately. On
+  exhaustion the underlying `httpx` exception is re-raised (not wrapped in
+  `tenacity.RetryError`).
 
 ## Development
 
