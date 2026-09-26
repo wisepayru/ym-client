@@ -11,7 +11,7 @@ import datetime
 
 import pytest
 
-from ym_client.models import CalculateTariffsResponse, OrderResponse
+from ym_client.models import BusinessOrdersResponse, CalculateTariffsResponse, OrderResponse
 from ym_client.models.generic import GenericErrorResponse, GenericSuccessResponse
 from ym_client.models.get_order import Dates, Order
 
@@ -90,6 +90,29 @@ def test_calculate_tariffs_nested(load_fixture):
     assert offer.tariffs[1].parameters is None
 
 
+# --- getBusinessOrders nested parsing ---------------------------------------
+
+def test_business_orders_example(load_fixture):
+    parsed = BusinessOrdersResponse.model_validate(load_fixture("orders/business_orders.json"))
+    order = parsed.orders[0]
+    # ISO 8601 with an offset parses timezone-aware
+    assert order.creationDate == datetime.datetime(
+        2020, 2, 2, 14, 30, 30, tzinfo=datetime.timezone(datetime.timedelta(hours=3)))
+    assert order.items[0].prices.payment.value == 0.5
+    assert order.items[0].itemStatuses[0].status == "CREATED"
+    assert order.delivery.dates.fromDate == datetime.date(2025, 1, 1)
+    assert order.delivery.courier.region.parent is None
+    assert order.delivery.boxesLayout[0].items[0].id is None
+    assert order.delivery.digitalGoods.type == "EMAIL"
+
+
+def test_business_orders_response_requires_orders():
+    # orders is the one top-level field the documentation marks required
+    assert BusinessOrdersResponse.model_validate({"orders": []}).orders == []
+    with pytest.raises(ValueError):
+        BusinessOrdersResponse.model_validate({})
+
+
 # --- contract-drift guard --------------------------------------------------
 
 # Each response model must parse the captured/spec-derived body for its
@@ -98,10 +121,13 @@ def test_calculate_tariffs_nested(load_fixture):
 RESPONSE_CONTRACTS = [
     ("orders/order_created.json", OrderResponse),
     ("orders/order_status_updated.json", OrderResponse),
+    ("orders/business_orders.json", BusinessOrdersResponse),
     ("tariffs/calculate_success.json", CalculateTariffsResponse),
     ("generic/success.json", GenericSuccessResponse),
     ("errors/error_response.json", GenericErrorResponse),
     ("tariffs/calculate_error.json", GenericErrorResponse),
+    ("errors/api_error_response.json", GenericErrorResponse),
+    ("errors/api_disabled.json", GenericErrorResponse),
 ]
 
 

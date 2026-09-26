@@ -1,0 +1,9 @@
+{
+  "status": "OK",
+  "errors": [
+    {
+      "code": "example",
+      "message": "example"
+    }
+  ]
+}

@@ -1,0 +1,164 @@
+{
+  "orders": [
+    {
+      "orderId": 0,
+      "campaignId": 1,
+      "programType": "FBY",
+      "externalOrderId": "example",
+      "status": "PLACING",
+      "substatus": "RESERVATION_EXPIRED",
+      "creationDate": "2020-02-02T14:30:30+03:00",
+      "updateDate": "2020-02-02T14:30:30+03:00",
+      "paymentType": "PREPAID",
+      "paymentMethod": "CASH_ON_DELIVERY",
+      "fake": true,
+      "items": [
+        {
+          "id": 0,
+          "offerId": "example",
+          "offerName": "example",
+          "count": 0,
+          "prices": {
+            "payment": {
+              "value": 0.5,
+              "currencyId": "RUR"
+            },
+            "subsidy": null,
+            "cashback": null,
+            "vat": "NO_VAT"
+          },
+          "instances": [
+            {
+              "cis": "example",
+              "cisFull": "example",
+              "uin": "example",
+              "rnpt": "example",
+              "gtd": "example",
+              "countryCode": "RU"
+            }
+          ],
+          "requiredInstanceTypes": [
+            "CIS"
+          ],
+          "itemStatuses": [
+            {
+              "status": "CREATED",
+              "count": 0
+            }
+          ],
+          "tags": [
+            "ULTIMA"
+          ]
+        }
+      ],
+      "prices": {
+        "payment": null,
+        "subsidy": null,
+        "cashback": null,
+        "delivery": {
+          "payment": null,
+          "subsidy": null,
+          "vat": null
+        }
+      },
+      "delivery": {
+        "type": "DELIVERY",
+        "serviceName": "example",
+        "deliveryServiceId": 0,
+        "warehouseId": "example",
+        "deliveryPartnerType": "SHOP",
+        "dispatchType": "UNKNOWN",
+        "dates": {
+          "fromDate": "2025-01-01",
+          "toDate": "2025-01-01",
+          "fromTime": "12:00:00",
+          "toTime": "12:00:00",
+          "realDeliveryDate": "2025-01-01"
+        },
+        "shipment": {
+          "id": 0,
+          "shipmentDate": "2025-01-01",
+          "shipmentTime": "12:00:00"
+        },
+        "courier": {
+          "address": {
+            "country": "example",
+            "postcode": "example",
+            "city": "example",
+            "district": "example",
+            "subway": "example",
+            "street": "example",
+            "house": "example",
+            "block": "example",
+            "entrance": "example",
+            "entryphone": "example",
+            "floor": "example",
+            "apartment": "example",
+            "gps": {
+              "latitude": 0.5,
+              "longitude": 0.5
+            }
+          },
+          "region": {
+            "id": 0,
+            "name": "example",
+            "type": "OTHER",
+            "parent": null
+          }
+        },
+        "pickup": {
+          "address": null,
+          "region": null,
+          "logisticPointId": 1,
+          "outletCode": "example",
+          "outletStorageLimitDate": "2025-01-01"
+        },
+        "transfer": {
+          "courier": {
+            "fullName": "example",
+            "phone": "example",
+            "phoneExtension": "example",
+            "vehicleNumber": "example",
+            "vehicleDescription": "example"
+          },
+          "eac": {
+            "eacType": "MERCHANT_TO_COURIER",
+            "eacCode": "example"
+          }
+        },
+        "boxesLayout": [
+          {
+            "items": [
+              {}
+            ],
+            "boxId": 0,
+            "barcode": "example"
+          }
+        ],
+        "tracks": [
+          {
+            "trackCode": "example",
+            "deliveryServiceId": 0
+          }
+        ],
+        "estimated": true,
+        "receiveBarcode": "example",
+        "receiveCode": "example",
+        "digitalGoods": {
+          "type": "EMAIL",
+          "steamLink": "example"
+        }
+      },
+      "services": {
+        "liftType": "NOT_NEEDED"
+      },
+      "buyerType": "PERSON",
+      "notes": "example",
+      "cancelRequested": true,
+      "sourcePlatform": "MARKET"
+    }
+  ],
+  "paging": {
+    "nextPageToken": "example"
+  }
+}

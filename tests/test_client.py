@@ -7,14 +7,21 @@ reaches the wire, and that the response parses into the right model -- including
 the success/error dispatch on the response body.
 """
 
+import datetime
 import json
 from uuid import UUID
 
 import httpx
+import pydantic
 import pytest
 
 from ym_client import Client
-from ym_client.models import CalculateTariffsResponse, OrderResponse
+from ym_client.models import (
+    BusinessOrdersResponse,
+    CalculateTariffsResponse,
+    OrderDatesFilterDTO,
+    OrderResponse,
+)
 from ym_client.models.generic import GenericErrorResponse, GenericSuccessResponse
 
 SCHEMA = "https"
@@ -22,6 +29,8 @@ URL = "api.partner.market.yandex.ru"
 BASE_URL = f"{SCHEMA}://{URL}"
 TOKEN = "test-market-token"
 CAMPAIGN_ID = 49152127
+# the documentation's example id; any value other than CAMPAIGN_ID catches the two being swapped
+BUSINESS_ID = 1
 ORDER_ID = 57962644480
 TRACE = {"X-Trace-Id": "trace-123", "X-Request-Id": "req-456"}
 
@@ -38,7 +47,7 @@ OFFERS = [{"categoryId": 1, "price": 1299.0, "quantity": 4}]
 
 
 def make_client() -> Client:
-    return Client(schema=SCHEMA, url=URL, campaignId=CAMPAIGN_ID, token=TOKEN)
+    return Client(schema=SCHEMA, url=URL, campaignId=CAMPAIGN_ID, token=TOKEN, businessId=BUSINESS_ID)
 
 
 # --- auth / base-url -------------------------------------------------------
@@ -76,6 +85,66 @@ async def test_get_order(mock_ym, load_fixture):
     assert isinstance(parsed, OrderResponse)
     assert parsed.order.id == body["order"]["id"]
     assert parsed.order.status == "PROCESSING"
+
+
+async def test_get_business_orders(mock_ym, load_fixture):
+    mock_ym.respond_json(load_fixture("orders/business_orders.json"))
+    async with make_client() as client:
+        req, resp, parsed = await client.getBusinessOrders([ORDER_ID])
+
+    sent = mock_ym.last_request
+    assert sent.method == "POST"
+    assert sent.url.path == f"/v1/businesses/{BUSINESS_ID}/orders"
+    assert sent.url.query == b""
+    # filters left as None stay out of the body
+    assert json.loads(sent.content) == {"orderIds": [ORDER_ID]}
+    assert isinstance(parsed, BusinessOrdersResponse)
+    assert parsed.orders[0].orderId == 0
+    assert parsed.paging.nextPageToken == "example"
+
+
+async def test_get_business_orders_filters_and_paging(mock_ym, load_fixture):
+    mock_ym.respond_json(load_fixture("orders/business_orders.json"))
+    dates = OrderDatesFilterDTO(
+        creationDateFrom=datetime.date(2025, 1, 1),
+        updateDateTo=datetime.datetime(2025, 1, 1, tzinfo=datetime.UTC),
+    )
+    async with make_client() as client:
+        await client.getBusinessOrders(
+            campaignIds=[CAMPAIGN_ID],
+            statuses=["PROCESSING"],
+            dates=dates,
+            fake=False,
+            pageToken="example",
+            limit=50,
+        )
+
+    sent = mock_ym.last_request
+    assert json.loads(sent.content) == {
+        "campaignIds": [CAMPAIGN_ID],
+        "statuses": ["PROCESSING"],
+        # the documented formats: a plain date, and ISO 8601 for the update bounds
+        "dates": {"creationDateFrom": "2025-01-01", "updateDateTo": "2025-01-01T00:00:00Z"},
+        # False is a filter value, not an unset one
+        "fake": False,
+    }
+    assert dict(sent.url.params) == {"pageToken": "example", "limit": "50"}
+
+
+async def test_get_business_orders_requires_business_id(mock_ym):
+    async with Client(schema=SCHEMA, url=URL, campaignId=CAMPAIGN_ID, token=TOKEN) as client:
+        with pytest.raises(RuntimeError, match="businessId"):
+            await client.getBusinessOrders([ORDER_ID])
+    assert mock_ym.requests == []
+
+
+@pytest.mark.parametrize("order_ids", [[], list(range(1, 52))], ids=["empty", "51-ids"])
+async def test_get_business_orders_rejects_out_of_range_ids_without_a_request(mock_ym, order_ids):
+    # orderIds takes 1 to 50 items
+    async with make_client() as client:
+        with pytest.raises(pydantic.ValidationError):
+            await client.getBusinessOrders(order_ids)
+    assert mock_ym.requests == []
 
 
 async def test_set_order_external_id(mock_ym, load_fixture):
@@ -164,6 +233,25 @@ async def test_get_order_error_dispatch(mock_ym, load_fixture):
     assert parsed.errors[0].code == "NOT_FOUND"
 
 
+async def test_get_business_orders_error_dispatch(mock_ym, load_fixture):
+    # a 200 carrying errors[], with the documented error envelope's body, which has status OK beside the errors
+    mock_ym.respond_json(load_fixture("errors/api_error_response.json"))
+    async with make_client() as client:
+        _, _, parsed = await client.getBusinessOrders([ORDER_ID])
+    assert isinstance(parsed, GenericErrorResponse)
+    assert parsed.errors[0].code == "example"
+
+
+async def test_get_business_orders_api_disabled_raises_without_retry(mock_ym, fast_retry, load_fixture):
+    mock_ym.respond_json(load_fixture("errors/api_disabled.json"), status_code=403)
+    async with make_client() as client:
+        with pytest.raises(httpx.HTTPStatusError) as exc:
+            await client.getBusinessOrders([ORDER_ID])
+    assert exc.value.response.status_code == 403
+    assert exc.value.response.json()["errors"][0]["code"] == "API_DISABLED"
+    assert len(mock_ym.requests) == 1
+
+
 async def test_set_order_external_id_error_dispatch(mock_ym, load_fixture):
     mock_ym.respond_json(load_fixture("errors/error_response.json"))
     async with make_client() as client:
@@ -208,6 +296,8 @@ async def test_bare_status_error_dispatches_to_error(mock_ym, call):
 HEADER_CASES = [
     ("getOrder", "orders/order_created.json",
      lambda c, h: c.getOrder(ORDER_ID, headers=h)),
+    ("getBusinessOrders", "orders/business_orders.json",
+     lambda c, h: c.getBusinessOrders([ORDER_ID], headers=h)),
     ("setOrderExternalId", "generic/success.json",
      lambda c, h: c.setOrderExternalId(ORDER_ID, EXTERNAL_ID, headers=h)),
     ("deliverDigitalGoods", "generic/success.json",
@@ -254,7 +344,7 @@ async def test_permanent_4xx_is_not_retried(mock_ym, fast_retry, status_code):
     assert len(mock_ym.requests) == 1
 
 
-@pytest.mark.parametrize("status_code", [429, 502, 503, 504])
+@pytest.mark.parametrize("status_code", [420, 429, 502, 503, 504])
 async def test_transient_status_is_retried_then_raises(mock_ym, fast_retry, status_code):
     # Transient server statuses (#15) are retried up to 5 attempts, then the
     # HTTPStatusError surfaces directly (reraise=True).
@@ -264,3 +354,44 @@ async def test_transient_status_is_retried_then_raises(mock_ym, fast_retry, stat
             await client.getOrder(ORDER_ID)
     assert exc.value.response.status_code == status_code
     assert len(mock_ym.requests) == 5
+
+
+async def test_null_or_empty_errors_parse_as_success(mock_ym, load_fixture):
+    body = load_fixture("orders/business_orders.json")
+    for errors in (None, []):
+        mock_ym.respond_json({**body, "errors": errors})
+        async with make_client() as client:
+            _, _, parsed = await client.getBusinessOrders([ORDER_ID])
+        assert not isinstance(parsed, GenericErrorResponse)
+
+
+async def test_errors_without_a_status_dispatch_to_error(mock_ym):
+    mock_ym.respond_json({"errors": [{"code": "X", "message": "x"}]})
+    async with make_client() as client:
+        _, _, parsed = await client.getBusinessOrders([ORDER_ID])
+    assert isinstance(parsed, GenericErrorResponse)
+    assert parsed.status is None
+
+
+async def test_get_business_orders_rejects_undocumented_request_values_without_a_request(mock_ym):
+    import datetime as dttm
+    from pydantic import ValidationError
+    from ym_client.models import OrderDatesFilterDTO
+
+    async with make_client() as client:
+        with pytest.raises(ValidationError):
+            await client.getBusinessOrders([ORDER_ID], campaignIds=[0])
+        with pytest.raises(ValidationError):
+            await client.getBusinessOrders(
+                [ORDER_ID], dates=OrderDatesFilterDTO(updateDateFrom=dttm.datetime(2026, 9, 26, 12, 0)),
+            )
+    assert mock_ym.requests == []
+
+
+async def test_an_error_without_a_message_still_dispatches_to_error(mock_ym):
+    mock_ym.respond_json({"status": "ERROR", "errors": [{"code": "X"}]})
+    async with make_client() as client:
+        _, _, parsed = await client.getBusinessOrders([ORDER_ID])
+    assert isinstance(parsed, GenericErrorResponse)
+    assert parsed.errors[0].message is None
+

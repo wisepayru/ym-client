@@ -4,6 +4,7 @@ from ym_client.models import (
     GenericSuccessResponse,
     GenericErrorResponse,
     CalculateTariffsResponse,
+    BusinessOrdersResponse,
 )
 
 
@@ -16,6 +17,7 @@ def test_models_import():
     assert GenericSuccessResponse is not None
     assert GenericErrorResponse is not None
     assert CalculateTariffsResponse is not None
+    assert BusinessOrdersResponse is not None
 
 
 def test_client_requires_token():

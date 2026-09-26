@@ -1,9 +1,9 @@
 # Test fixtures
 
 Response/request bodies the client must parse or build, used by
-`tests/test_client.py` and `tests/test_models.py`. Two provenances:
+`tests/test_client.py` and `tests/test_models.py`, from three sources:
 
-## Real captures (from ym-api's OpenSearch request logs, env `qa`)
+## Real captures from qa (from ym-api's OpenSearch request logs)
 
 Captured verbatim from the live Yandex Market Partner API via ym-api's
 request-logging middleware, and shared from `ym-api/tests/fixtures/orders/` so
@@ -14,6 +14,33 @@ the client and its consumer can't silently diverge on the `getOrder` contract:
   `sourcePlatform`, which exercises the models' tolerance of unknown keys).
 - `orders/order_status_updated.json` — `GET .../orders/{orderId}` 200 (a later
   status, `DELIVERY`).
+## A production record
+
+Not shared with ym-api:
+
+- `errors/api_disabled.json` — the 403 body `GET .../orders/{orderId}` answered
+  in production on 2026-09-26 for a store whose API Market had switched off
+  (`DISABLED_BY_INACTIVITY`), as ym-api's log recorded it; the campaign id was
+  masked in that record and stays `<n>` here. The `getBusinessOrders` 403 test
+  uses it to fix how the client surfaces a 403; that method's own answer for a
+  switched-off store has not been seen.
+
+## Documentation examples (copied from the official Yandex Market Partner API docs)
+
+Taken verbatim from the examples on
+<https://yandex.ru/dev/market/partner-api/doc/ru/reference/orders/getBusinessOrders>,
+so the values are the documentation's placeholders (`"example"`, `0`, `0.5`,
+the first value of each enum).
+
+- `orders/business_orders.json` — `POST /v1/businesses/{businessId}/orders` 200,
+  `BusinessOrdersResponse`: the `BusinessOrderDTO` entity example as the one
+  element of `orders`, and the `PackagingForwardScrollingPagerDTO` entity example
+  as `paging`. The page's example of the whole 200 body is not used: it cuts
+  nesting short with `null` array elements (`"instances": [null]`) that the
+  documented schema does not allow.
+- `errors/api_error_response.json` — the `ApiErrorResponse` entity example the
+  page gives for its 400/401/403/404/420/500 bodies (`status: OK` beside
+  `errors[]`, as documented). Parses into `GenericErrorResponse`.
 
 ## Spec-derived (built from the official Yandex Market Partner API docs)
 

@@ -6,8 +6,9 @@ class GenericSuccessResponse(BaseModel):
 
 class ErrorDetail(BaseModel):
     code: str
-    message: str
+    # optional in Market's ApiErrorDTO, where code alone is required
+    message: Optional[str] = None
 
 class GenericErrorResponse(BaseModel):
-    status: str
+    status: Optional[str] = None
     errors: Optional[List[ErrorDetail]] = Field(None)

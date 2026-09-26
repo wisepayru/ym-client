@@ -10,7 +10,13 @@ from tenacity import (
     retry_if_exception_type,
 )
 from pydantic import BaseModel
-from .models import OrderResponse, CalculateTariffsResponse
+from .models import (
+    OrderResponse,
+    CalculateTariffsResponse,
+    BusinessOrdersResponse,
+    GetBusinessOrdersRequest,
+    OrderDatesFilterDTO,
+)
 from .models.generic import GenericSuccessResponse, GenericErrorResponse
 
 try:
@@ -20,9 +26,10 @@ except PackageNotFoundError:
 
 _USER_AGENT = f"wisepay-ym-client/{_version}"
 
-# Transient server-side statuses worth retrying: rate limit + gateway/upstream
-# hiccups (#15). 4xx other than 429 are caller errors and are not retried.
-_RETRYABLE_STATUS_CODES = frozenset({429, 502, 503, 504})
+# Transient server-side statuses worth retrying: Market's rate limit, which it
+# answers with 420 (its limits page), 429 from anything in between, and
+# gateway/upstream hiccups. Other 4xx are caller errors and are not retried.
+_RETRYABLE_STATUS_CODES = frozenset({420, 429, 502, 503, 504})
 
 
 def _is_retryable_status_error(exc: BaseException) -> bool:
@@ -38,7 +45,8 @@ class Client:
             schema: str = 'https',
             url: str = 'api.partner.market.yandex.ru',
             campaignId: int = None,
-            token: str = None):
+            token: str = None,
+            businessId: int = None):
         if token is None:
             raise Exception("Yandex Market API token was not provided. In order to init a Y.Market client, please provide a token.")
         if campaignId is None:
@@ -46,6 +54,7 @@ class Client:
 
         self.base_url = f'{schema}://{url}'
         self.campaignId = campaignId
+        self.businessId = businessId
         self._token = token
         self._headers = {
             "User-Agent": _USER_AGENT,
@@ -69,7 +78,7 @@ class Client:
         stop=stop_after_attempt(5),
         wait=wait_fixed(2),
         # Retry transport errors (connect/read/timeout) and transient server
-        # statuses (429/502/503/504, #15). Permanent 4xx (e.g. 403/404) raise
+        # statuses (420/429/502/503/504, #15). Permanent 4xx (e.g. 403/404) raise
         # immediately.
         retry=(
             retry_if_exception_type((httpx.RequestError, httpx.TimeoutException))
@@ -96,9 +105,10 @@ class Client:
         resp = await self._client.send(req)
         resp.raise_for_status()
         data = resp.json()
-        # YM signals business errors in the body (an `errors` list, or
-        # `status: ERROR` for tariffs) while still returning HTTP 200.
-        if 'errors' in data or data.get('status') == 'ERROR':
+        # YM signals business errors in the body (a non-empty `errors` list, or
+        # `status: ERROR` for tariffs) while still returning HTTP 200; an
+        # `errors` that is null or empty is not an error.
+        if data.get('errors') or data.get('status') == 'ERROR':
             return req, resp, GenericErrorResponse.model_validate(data)
         return req, resp, success_model.model_validate(data)
 
@@ -113,6 +123,54 @@ class Client:
         """
         endpoint = f'v2/campaigns/{self.campaignId}/orders/{orderId}'
         return await self._request('GET', endpoint, OrderResponse, extra_headers=headers)
+
+    async def getBusinessOrders(
+        self,
+        orderIds: Optional[List[int]] = None,
+        *,
+        externalOrderIds: Optional[List[str]] = None,
+        programTypes: Optional[List[str]] = None,
+        campaignIds: Optional[List[int]] = None,
+        statuses: Optional[List[str]] = None,
+        substatuses: Optional[List[str]] = None,
+        dates: Optional[OrderDatesFilterDTO] = None,
+        fake: Optional[bool] = None,
+        waitingForCancellationApprove: Optional[bool] = None,
+        sourcePlatforms: Optional[List[str]] = None,
+        pageToken: Optional[str] = None,
+        limit: Optional[int] = None,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> Tuple[httpx.Request, httpx.Response, Union[BusinessOrdersResponse, GenericErrorResponse]]:
+        """
+        Retrieve the business's orders matching the given filters, one page at a time.
+        Filters left as None are not sent; the body is validated against
+        GetBusinessOrdersRequest before anything goes out, so a list of more than
+        50 orderIds raises pydantic.ValidationError without a request.
+        https://yandex.ru/dev/market/partner-api/doc/ru/reference/orders/getBusinessOrders
+        """
+        if self.businessId is None:
+            raise RuntimeError("Yandex Market businessId was not provided.")
+        endpoint = f'v1/businesses/{self.businessId}/orders'
+        body = GetBusinessOrdersRequest(
+            orderIds=orderIds,
+            externalOrderIds=externalOrderIds,
+            programTypes=programTypes,
+            campaignIds=campaignIds,
+            statuses=statuses,
+            substatuses=substatuses,
+            dates=dates,
+            fake=fake,
+            waitingForCancellationApprove=waitingForCancellationApprove,
+            sourcePlatforms=sourcePlatforms,
+        ).model_dump(mode='json', exclude_none=True)
+        params = {
+            key: value
+            for key, value in (("pageToken", pageToken), ("limit", limit))
+            if value is not None
+        }
+        return await self._request(
+            'POST', endpoint, BusinessOrdersResponse, json=body, params=params, extra_headers=headers
+        )
 
     async def deliverDigitalGoods(
         self,

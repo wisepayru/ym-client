@@ -1,0 +1,9 @@
+{
+  "status": "ERROR",
+  "errors": [
+    {
+      "code": "API_DISABLED",
+      "message": "API for campaign <n> disabled due to inactivity."
+    }
+  ]
+}
